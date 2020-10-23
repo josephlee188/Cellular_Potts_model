@@ -25,12 +25,12 @@ function checkFrag(pixel, model)::Tuple{Float64, Float64}
     p_x, p_y = pixel.pos
     
     new_px = p_x + 
-    - ((p_x - c_x) > (model.griddims[1]/2)) * model.griddims[1]
-    + ((p_x - c_x) < (model.griddims[1]/2)) * model.griddims[1]
+    - ((p_x - c_x) > (model.griddims[1]/2)) * model.griddims[1] + 
+    ((p_x - c_x) < (model.griddims[1]/2)) * model.griddims[1]
 
     new_py = p_y +
-    - ((p_y - c_y) > (model.griddims[1]/2)) * model.griddims[2]
-    + ((p_y - c_y) < (model.griddims[1]/2)) * model.griddims[2]
+    - ((p_y - c_y) > (model.griddims[1]/2)) * model.griddims[2] + 
+    ((p_y - c_y) < (model.griddims[1]/2)) * model.griddims[2]
 
     return new_px, new_py
 end
