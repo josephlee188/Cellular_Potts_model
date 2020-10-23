@@ -4,6 +4,7 @@ Julia implementation of Cellular Potts Model
 """
 ##
 using Agents, AgentsPlots
+using Get_energy_diff
 
 mutable struct Pixel <: AbstractAgent
     id::Int
@@ -163,27 +164,6 @@ function update_perimeter!(target_pixel, neighbor_pixel, model)
 end
 
 
-function get_conserv_ΔE()
-    return 0
-end
-
-function get_adh_ΔE()
-    return 0
-end
-    
-function get_persis_ΔE()
-    return 0
-end
-
-function get_total_ΔE(target_pixel, neighbor_pixel, model)
-    ΔE = 
-    get_conserv_ΔE(target_pixel, neighbor_pixel, model) + 
-    get_adh_ΔE(target_pixel, neighbor_pixel, model) + 
-    get_persis_ΔE(target_pixel, neighbor_pixel, model)
-    return ΔE
-end
-    
-
 ######### Initilization ########
 function initialize(; numCells=25, griddims=(50,50), Temperature=30)::AgentBasedModel
     space = GridSpace(griddims, periodic=true, moore=true)
@@ -264,14 +244,14 @@ ac_edges(x) = Int64(x.isedge)
 
 model = initialize(numCells=100, griddims=(100,100))
 
-@time step!(model, dummystep, cpm_step!, 1)
+@time step!(model, dummystep, cpm_step!, 100)
 
 plotabm(
     model; 
-    as=3.6, 
+    as=2.2, 
     ac=ac_edges_black, 
     am=:square, 
-    size=(800,800),
+    size=(500,500),
     showaxis=false,
     grid=false,
     markerstrokewidth=0,
