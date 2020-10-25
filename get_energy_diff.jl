@@ -26,7 +26,7 @@ end
 
 function get_total_ΔE(target_pixel, neighbor_pixel, model)
     ΔE = 
-    get_conserv_ΔE(target_pixel, neighbor_pixel, model) + 
+    get_conserv_ΔE(target_pixel, neighbor_pixel, model, newPeri_target, newPeri_neighbor) + 
     get_adh_ΔE(target_pixel, neighbor_pixel, model) + 
     get_persis_ΔE(target_pixel, neighbor_pixel, model)
     return ΔE

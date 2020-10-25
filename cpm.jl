@@ -10,7 +10,9 @@ mutable struct Pixel <: AbstractAgent
     id::Int
     pos::Tuple{Int,Int}
     cellid::Int
-    isedge::Bool
+    # isedge::Bool
+    neighbors::Int # Number of distinct neighbors (only at sides and up down). 
+    # It is an edge if this number != 0
 end
 
 mutable struct Cell
@@ -36,17 +38,18 @@ function checkFrag(pixel, model)::Tuple{Float64, Float64}
     return new_px, new_py
 end
 
-function checkEdge(pixel, model)::Bool
-    # Check if a pixel is edges of a cell
+function checkNeighbors(pixel, model)::Int
+    # Return the number of neighbors whose cellids distinct from 'id' (only right,left,up,and down)
+    N = 0
     neighbor_coords = node_neighbors(pixel, model)
     for (i,nc) in enumerate(neighbor_coords)
         if !(i in (1,3,6,8)) # Diagonals are not even looked at
             if model.agents[Agents.coord2vertex((nc[1],nc[2]), model)].cellid != pixel.cellid
-                return true
+                N += 1
             end
         end
     end
-    return false
+    return N
 end
 
 
@@ -80,7 +83,7 @@ end
 function get_perimeter(cellid, model)::Int64
     P = 0
     @inbounds for (_,px) in model.agents
-        if px.cellid==cellid && checkEdge(px, model)
+        if px.cellid==cellid && (checkNeighbors(px,model)!=0)
             P += 1
         end
     end
@@ -92,6 +95,7 @@ function pbc(x, box_size)::Float64
     # Resets the position opposite side of the box
     return x - floor(x / box_size) * box_size
 end
+
 
 function update_center_pos!(target_pixel, neighbor_pixel, model)
     # Update the center position of the cells when target pixel copies neighbor pixel
@@ -116,31 +120,46 @@ function update_center_pos!(target_pixel, neighbor_pixel, model)
 
 end
 
-function update_perimeter!(target_pixel, neighbor_pixel, model)
+function get_new_perimeter(target_pixel, neighbor_pixel, model)
     # Target pixel must be an edge. But by copying neighbor pixel to the position of target pixel,
     # new edges can be made...
+
+    # Since target, and neighbor pixels themselves are edges
     model.Cells[target_pixel.cellid].perimeter -= 1
     model.Cells[neighbor_pixel.cellid].perimeter += 1
 
-    target_cell_edges = 0
-    neighbor_cell_edges = 0
+    ΔPₜ = 0
+    ΔPₙ = 0
+
+    # Get current perimeter (number of edges) within a box (3x3)
+
     neighbor_coords = node_neighbors(target_pixel, model)
     for nc in neighbor_coords
         n_pixel = model.agents[Agents.coord2vertex((nc[1],nc[2]), model)]
-        if n_pixel.isedge 
-            if n_pixel.cellid==target_pixel.cellid
-                target_cell_edges += 1
-                
-            elseif n_pixel.cellid==neighbor_pixel.cellid
-                neighbor_cell_edges += 1
+        if n_pixel.cellid==target_pixel.cellid
+            if n_pixel.neighbors==0
+                ΔPₜ += 1
+            end
+        elseif n_pixel.cellid==neighbor_pixel.cellid
+            if n_pixel.neighbors==1
+                ΔPₙ -= 1
+            end     
+
+
+
+
+
             end
         end
     end
-       
-    target_pixel.cellid = neighbor_pixel.cellid
+    
+    # Update the pixel cellid
+    # target_pixel.cellid = neighbor_pixel.cellid
 
     target_pixel.isedge = checkEdge(target_pixel, model)
 
+    # Get new perimeter within the box
+    # Suppose now that target_pixel's cellid is copied from neighbor_pixel.cellid
     new_target_cell_edges = 0
     new_neighbor_cell_edges = 0
     neigbor_coords = node_neighbors(target_pixel, model)
