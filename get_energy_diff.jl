@@ -38,9 +38,9 @@ function get_persis_ΔE(target_pixel, neighbor_pixel, model)
     neighbor_cell = model.Cells[neighbor_pixel.cellid]
 
     Δr_target = (target_cell.centerPos .- target_pixel.pos) ./ (target_cell.area - 1)
-    Δr_target ./= norm(Δr_target)
-    Δr_neighbor = -(neighbor_cell.centerPos .- neighbor_pixel.pos) ./ (neighbor_cell.area + 1)
-    Δr_neighbor ./= norm(Δr_neighbor)
+    Δr_target = Δr_target ./ norm(Δr_target)
+    Δr_neighbor = (neighbor_pixel.pos .- neighbor_cell.centerPos) ./ (neighbor_cell.area + 1)
+    Δr_neighbor = Δr_neighbor ./ norm(Δr_neighbor)
 
     ΔE = dot(target_cell.polarity, Δr_target) / norm(target_cell.polarity) +
     dot(neighbor_cell.polarity, Δr_neighbor) / norm(neighbor_cell.polarity)

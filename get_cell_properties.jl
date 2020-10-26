@@ -99,8 +99,8 @@ function update_polarity!(model)
     # polarity is a property which depends upon the history of the cell's motion
     # polarity updates only once every 1 MCS step
     for cell in model.Cells
-        @. cell.polarity += (cell.centerPos - cell.prev_pos) - cell.polarity / model.τ
-        @. cell.prev_pos = cell.centerPos
+        cell.polarity = @. cell.polarity + (cell.centerPos - cell.prev_pos) - cell.polarity / model.τ
+        cell.prev_pos = cell.centerPos
     end
 end
 

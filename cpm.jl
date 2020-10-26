@@ -205,7 +205,7 @@ end
 model = initialize(numCells=100, griddims=(100,100), A₀=100, P₀=31, J_CC=-10);
 ##
 # @benchmark step!(model, dummystep, cpm_step!, 1)
-step!(model, dummystep, cpm_step!, 1)
+step!(model, dummystep, cpm_step!, 5)
 ##
 plotabm(
     model; 
@@ -227,9 +227,8 @@ centerY = [cell.centerPos[2] for cell in Cells]
 polX = [cell.polarity[1] for cell in Cells]
 polY = [cell.polarity[2] for cell in Cells]
 col = [1:225]
-scatter!(centerX,centerY, markersize=3, color=:black, leg=false)
+# scatter!(centerX,centerY, markersize=3, color=:black, leg=false)
 quiver!(centerX,centerY, quiver=(polX, polY), color=:black, leg=false)
-
 
 ##
 # plotabm(
