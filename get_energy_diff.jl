@@ -20,7 +20,7 @@ end
 function get_adh_ΔE(target_pixel, neighbor_pixel, model)
     N_old = 0
     N_new = 0
-    for nc in node_neighbors(target_pixel, model)
+    @inbounds for nc in node_neighbors(target_pixel, model)
         npx = model.agents[Agents.coord2vertex((nc[1],nc[2]), model)]
     # for npx in pixel_neighbors(target_pixel, model)
         if npx.cellid==target_pixel.cellid
@@ -52,7 +52,7 @@ end
 function get_total_ΔE(target_pixel, neighbor_pixel, model)
     ΔE = 
     get_conserv_ΔE(target_pixel, neighbor_pixel, model) + 
-    get_adh_ΔE(target_pixel, neighbor_pixel, model) + 
+    get_adh_ΔE(target_pixel, neighbor_pixel, model) 
     get_persis_ΔE(target_pixel, neighbor_pixel, model)
     return ΔE
 end

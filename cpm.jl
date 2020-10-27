@@ -26,24 +26,6 @@ mutable struct Cell
     prev_pos::Tuple{Float64,Float64}
 end
 
-function checkFrag(pixel, model)::Tuple{Float64, Float64}
-    # Checks if a cell is fragmented due to periodic bc
-    # Returns adjusted pixels position close to cell center
-
-    c_x, c_y = model.Cells[pixel.cellid].centerPos
-    p_x, p_y = pixel.pos
-    
-    new_px = p_x + 
-    - ((p_x - c_x) > (model.griddims[1]/2)) * model.griddims[1] + 
-    ((c_x - p_x) > (model.griddims[1]/2)) * model.griddims[1]
-
-    new_py = p_y +
-    - ((p_y - c_y) > (model.griddims[1]/2)) * model.griddims[2] + 
-    ((c_y - p_y) > (model.griddims[1]/2)) * model.griddims[2]
-
-    return new_px, new_py
-end
-
 
 """
 # Using this function (returns neighbor Pixels) slows down the code and doubles the allocations.
@@ -58,37 +40,6 @@ function pixel_neighbors(pixel, model)::Array{Pixel}
     return pixels
 end
 """
-
-
-function checkNeighbors(pixel, model)::Int
-    # Checks if a pixel is an edge
-    # Returns the number of neighboring pixels of different cellid (non-zero if edge)
-    N = 0
-    for nc in node_neighbors(pixel, model)
-        npx = model.agents[Agents.coord2vertex((nc[1],nc[2]), model)]
-    # for npx in pixel_neighbors(pixel, model)
-        if npx.cellid != pixel.cellid
-            N += 1
-        end
-    end
-    return N
-end
-
-
-function update_neighbors!(target_pixel, neighbor_pixel, model)
-    # Update the Pixels.neighbors of all of the neighboring pixels
-    for nc in node_neighbors(target_pixel, model)
-        npx = model.agents[Agents.coord2vertex((nc[1],nc[2]), model)]
-    # for npx in pixel_neighbors(target_pixel, model)
-        if npx.cellid==neighbor_pixel.cellid
-            npx.neighbors -= 1
-            target_pixel.neighbors -= 1
-        elseif npx.cellid==target_pixel.cellid
-            npx.neighbors += 1
-            target_pixel.neighbors += 1
-        end
-    end
-end
 
 
 ######### Initilization ########
@@ -161,7 +112,7 @@ function cpm_step!(model)
     # This ONE cpm_step consists of many Monte-Carlo steps accross the whole grid
     n_pixels = length(model.agents)
     # I could use @distribute these MC-steps
-    for _ in 1:n_pixels
+    @inbounds for _ in 1:n_pixels
         target_pixel = model.agents[rand(1:n_pixels)]
         if target_pixel.neighbors>0 # This is an edge
             ncoord = node_neighbors(target_pixel, model)[rand(1:8)]
@@ -172,25 +123,30 @@ function cpm_step!(model)
             else
                 # Calc Boltzmann probability
                 ΔE = get_total_ΔE(target_pixel, neighbor_pixel, model)
-                # ΔE = 2*rand()-1
                 if ΔE < 0
                     p = 1
                 else
                     p = exp(-ΔE / model.T)
                 end
 
-                # Update the pixel's cell id
+                # Update the system
                 if p > rand()
-                    # Increment the target cell-area & decrement neighbor cell-area
-                    model.Cells[target_pixel.cellid].area -= 1
-                    model.Cells[neighbor_pixel.cellid].area += 1
                     # Update the cell perimeters
                     ΔP_t, ΔP_n = get_perimeter_change(target_pixel, neighbor_pixel, model)
                     model.Cells[target_pixel.cellid].perimeter += ΔP_t
                     model.Cells[neighbor_pixel.cellid].perimeter += ΔP_n
+                    
                     # Update the pixel properties
-                    update_center_pos!(target_pixel, neighbor_pixel, model)
                     update_neighbors!(target_pixel, neighbor_pixel, model)
+                    update_center_pos!(target_pixel, neighbor_pixel, model)
+                    
+                    # Increment the target cell-area & decrement neighbor cell-area
+                    model.Cells[target_pixel.cellid].area -= 1
+                    model.Cells[neighbor_pixel.cellid].area += 1
+                    
+                    # target_cellid = target_pixel.cellid
+                    # neighbor_cellid = neighbor_pixel.cellid
+
                     target_pixel.cellid = neighbor_pixel.cellid
                 end
             end
@@ -200,21 +156,35 @@ function cpm_step!(model)
 end
 
 
-##################################################################################
+#####################################################################################################################
 ##
-model = initialize(numCells=100, griddims=(100,100), A₀=100, P₀=31, J_CC=-10);
+model = initialize(
+    numCells=100, 
+    griddims=(100,100), 
+    Temperature=30, 
+    A₀=100, 
+    P₀=32,
+    K_E=1,
+    K_P=1,
+    J_CC=-10,
+    S=20,
+    τ=50,
+    );
 ##
 # @benchmark step!(model, dummystep, cpm_step!, 1)
-step!(model, dummystep, cpm_step!, 5)
+@time step!(model, dummystep, cpm_step!, 100)
+
 ##
+ac_edges_black(x) = (x.neighbors>0) ? x.cellid : :black
+ac_cellidx(x) = Int64(x.cellid)
 plotabm(
     model; 
     # as=1.5, 
-    as=1.65,
+    as=2.7,
     # ac=ac_edges_black, 
     ac = ac_cellidx,
     am=:square, 
-    size=(400,400),
+    size=(600,600),
     showaxis=false,
     grid=false,
     markerstrokewidth=0,
@@ -224,32 +194,86 @@ plotabm(
 Cells = model.Cells
 centerX = [cell.centerPos[1] for cell in Cells]
 centerY = [cell.centerPos[2] for cell in Cells]
+# vX = [cell.centerPos[1]-cell.prev_pos[1] for cell in Cells]
+# vY = [cell.centerPos[2]-cell.prev_pos[2] for cell in Cells]
+# v = [norm((vX[i],vY[i])) for i in 1:length(Cells)]
+# vX ./= v
+# vY ./= v
 polX = [cell.polarity[1] for cell in Cells]
 polY = [cell.polarity[2] for cell in Cells]
-col = [1:225]
-# scatter!(centerX,centerY, markersize=3, color=:black, leg=false)
-quiver!(centerX,centerY, quiver=(polX, polY), color=:black, leg=false)
 
-##
-# plotabm(
-#     model; 
-#     as=4.4, 
-#     ac=ac, 
-#     am=:square, 
-#     size=(500,500),
-#     showaxis=false,
-#     grid=false,
-#     markerstrokewidth=0,
-#     markerstrokealpha=nothing,
-#     )
+cenX = [get_center_pos(i,model)[1] for i in 1:length(Cells)]
+cenY = [get_center_pos(i,model)[2] for i in 1:length(Cells)]
 
-
-ac_edges_black(x) = (x.neighbors>0) ? x.cellid : :black
-ac_cellidx(x) = Int64(x.cellid)
-    
-
+scatter!(centerX,centerY, markersize=3, color=:black, leg=false)
+scatter!(cenX,cenY, markersize=3, color=:red, leg=false)
+# quiver!(centerX,centerY, quiver=(polX, polY).*0.1, color=:black, leg=false)
 
 ## Test
 target_pixel = model.agents[1]
 neighbor_pixel = model.agents[10000]
 get_total_ΔE(target_pixel, neighbor_pixel, model)
+
+## ################ Generate gif ################
+model = initialize(numCells=100, griddims=(100,100), A₀=100, P₀=31, J_CC=-10, S=10, τ=20);
+Time = 1000
+anim = @time @animate for i ∈ 1:Time
+    plotabm(
+    model; 
+    # as=1.5, 
+    as=2.7,
+    # ac=ac_edges_black, 
+    ac = ac_cellidx,
+    am=:square, 
+    size=(600,600),
+    showaxis=false,
+    grid=false,
+    markerstrokewidth=0,
+    markerstrokealpha=nothing,
+    )
+    centerX = [cell.centerPos[1] for cell in model.Cells]
+    centerY = [cell.centerPos[2] for cell in model.Cells]
+    polX = [cell.polarity[1] for cell in model.Cells]
+    polY = [cell.polarity[2] for cell in model.Cells]
+    cenX = [get_center_pos(i,model)[1] for i in 1:length(model.Cells)]
+    cenY = [get_center_pos(i,model)[2] for i in 1:length(model.Cells)]
+    scatter!(centerX,centerY, markersize=3, color=:black, leg=false)
+    scatter!(cenX,cenY, markersize=3, color=:red, leg=false)
+    # quiver!(centerX,centerY, quiver=(polX, polY).*0.1, color=:black, leg=false)
+    step!(model, dummystep, cpm_step!, 1)
+    print(i, " ")
+end
+gif(anim, "test5.gif", fps = 15)
+
+
+
+
+
+
+
+
+## Test
+Cells = [cell for cell in model.Cells];
+A = [get_area(i,model)==cell.area for (i,cell) in enumerate(Cells)];
+sum(A)
+P = [(get_perimeter(i,model)==cell.perimeter) for (i,cell) in enumerate(Cells)];
+sum(P)
+
+N = Array{Int}(undef, 10000)
+for i in 1:length(model.agents)
+    N[i] = model.agents[i].neighbors
+end
+
+NN = Array{Int}(undef, 10000);
+for i in 1:length(model.agents)
+    ag = model.agents[i]
+    NN[i] = checkNeighbors(ag, model)
+end
+
+sum(NN .== N)
+
+Cx = [get_center_pos(i, model)[1]==cell.centerPos[1] for (i,cell) in enumerate(Cells)]
+sum(Cx)
+Cy = [get_center_pos(i, model)[2]==cell.centerPos[2] for (i,cell) in enumerate(Cells)]
+sum(Cy)
+C = [[get_center_pos(i, model),cell.centerPos] for (i,cell) in enumerate(Cells)]
